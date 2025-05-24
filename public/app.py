@@ -27,7 +27,9 @@ CORS(app, resources={
             "http://127.0.0.1:5500",
             "http://localhost:3000",
             "http://localhost:8000",
-            "http://localhost:5501"
+            "http://localhost:5501",
+            "https://aliang8.github.io",  # Add GitHub Pages domain
+            "https://snoopy1.usc.edu:8443"
         ],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
@@ -136,19 +138,30 @@ def log_request_info():
 def after_request(response):
     app.logger.info('Response: %s', response.get_data())
     origin = request.headers.get('Origin')
-    if origin in [
+    allowed_origins = [
         "http://0.0.0.0:5500",
         "http://localhost:5500",
         "http://127.0.0.1:5500",
         "http://localhost:3000",
         "http://localhost:8000",
-        "http://localhost:5501"
-    ]:
+        "http://localhost:5501",
+        "https://aliang8.github.io",
+        "https://snoopy1.usc.edu:8443"
+    ]
+    
+    if origin in allowed_origins:
         response.headers.add('Access-Control-Allow-Origin', origin)
         response.headers.add('Access-Control-Allow-Credentials', 'true')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Expose-Headers', 'Content-Type,Content-Length,Accept-Ranges,Content-Range')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Expose-Headers', 'Content-Type,Content-Length,Accept-Ranges,Content-Range')
+        
+    # Handle preflight requests
+    if request.method == 'OPTIONS':
+        response.headers['Access-Control-Max-Age'] = '3600'
+        response.status_code = 204
+        return response
+        
     return response
 
 @app.route('/api/get-trajectory-pair', methods=['GET'])
