@@ -1,5 +1,5 @@
 // Set this to your backend's public URL
-const BACKEND_URL = 'http://snoopy1.usc.edu:8000'; // Backend server running on snoopy1
+const BACKEND_URL = 'https://snoopy1.usc.edu:8443'; // Backend server running on snoopy1 with HTTPS
 console.log('SCRIPT EXECUTION STARTED. Backend URL:', BACKEND_URL); // Top-level log
 
 // State variables
