@@ -842,20 +842,33 @@ if __name__ == '__main__':
         # Check if running in production
         in_production = os.environ.get('FLASK_ENV') == 'production'
         
-        # SSL context
-        ssl_context = (
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ssl', 'cert.pem'),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ssl', 'key.pem')
-        )
+        # Get port from environment or use default
+        port = int(os.environ.get('PORT', 8443))
+        
+        # SSL context for HTTPS
+        ssl_context = None
+        cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ssl', 'cert.pem')
+        key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ssl', 'key.pem')
+        
+        # Check if SSL certificates exist
+        if os.path.exists(cert_path) and os.path.exists(key_path):
+            ssl_context = (cert_path, key_path)
+            app.logger.info("SSL certificates found, running with HTTPS")
+        else:
+            app.logger.warning("SSL certificates not found, running with HTTP only")
         
         if in_production:
             # Production settings
             app.logger.info("Running in production mode")
-            app.run(host='0.0.0.0', port=8443, ssl_context=ssl_context, request_handler=CustomRequestHandler)
+            if ssl_context:
+                app.run(host='0.0.0.0', port=port, ssl_context=ssl_context, request_handler=CustomRequestHandler)
+            else:
+                app.logger.error("SSL certificates required for production mode")
+                sys.exit(1)
         else:
             # Development settings
             app.logger.info("Running in development mode")
-            app.run(host='0.0.0.0', port=8443, ssl_context=ssl_context, debug=True, request_handler=CustomRequestHandler)
+            app.run(host='0.0.0.0', port=port, ssl_context=ssl_context, debug=True, request_handler=CustomRequestHandler)
             
     except Exception as e:
         app.logger.critical(f"Failed to start server: {e}", exc_info=True)

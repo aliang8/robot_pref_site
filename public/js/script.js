@@ -1,6 +1,37 @@
 // Set this to your backend's public URL
-const BACKEND_URL = 'https://snoopy1.usc.edu:8443'; // Backend server running on snoopy1 with HTTPS
-console.log('SCRIPT EXECUTION STARTED. Backend URL:', BACKEND_URL); // Top-level log
+const BACKEND_URL = 'https://snoopy1.usc.edu:8443'
+
+console.log('SCRIPT EXECUTION STARTED. Backend URL:', BACKEND_URL);
+console.log('Current hostname:', window.location.hostname);
+
+// Function to make a fetch request with proper error handling
+async function safeFetch(url, options = {}) {
+    try {
+        const response = await fetch(url, {
+            ...options,
+            mode: 'cors',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return response;
+    } catch (error) {
+        if (error.message.includes('SSL certificate')) {
+            throw new Error(`SSL Certificate Error: The connection to ${url} is not secure. Please ensure you have the proper certificates installed.`);
+        } else if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+            throw new Error(`Connection Error: Unable to connect to ${url}. Please check if the server is running and accessible.`);
+        }
+        throw error;
+    }
+}
 
 // State variables
 let currentPairIndex = 0;
@@ -158,8 +189,7 @@ function showError(error) {
 // Function to load available datasets
 async function loadAvailableDatasets() {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/get-available-datasets`);
-        if (!response.ok) throw new Error('Failed to fetch datasets');
+        const response = await safeFetch(`${BACKEND_URL}/api/get-available-datasets`);
         const data = await response.json();
         
         // Update dataset select
@@ -176,22 +206,29 @@ async function loadAvailableDatasets() {
         await updateDatasetInfo();
     } catch (error) {
         console.error('Error loading datasets:', error);
-        showError(error);
+        
+        // Show a more user-friendly error message
+        const errorMessage = error.message.includes('SSL Certificate')
+            ? 'Connection Security Error: Please contact the administrator to resolve SSL certificate issues.'
+            : error.message.includes('Connection Error')
+                ? 'Server Connection Error: Please ensure the server is running and try again.'
+                : error.message;
+                
+        showError(new Error(errorMessage));
     }
 }
 
 // Function to update dataset info
 async function updateDatasetInfo() {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/get-dataset-info?dataset=${currentDataset}`);
-        if (!response.ok) throw new Error('Failed to fetch dataset info');
-        datasetInfo = await response.json();
+        const response = await safeFetch(`${BACKEND_URL}/api/get-dataset-info?dataset=${currentDataset}`);
+        const data = await response.json();
         
         // Update UI
-        document.getElementById('labeled-count').textContent = datasetInfo.labeled_pairs;
-        document.getElementById('total-count').textContent = datasetInfo.total_pairs;
+        document.getElementById('labeled-count').textContent = data.labeled_pairs;
+        document.getElementById('total-count').textContent = data.total_pairs;
         document.getElementById('progress-percent').textContent = 
-            Math.round((datasetInfo.labeled_pairs / datasetInfo.total_pairs) * 100);
+            Math.round((data.labeled_pairs / data.total_pairs) * 100);
     } catch (error) {
         console.error('Error updating dataset info:', error);
         showError(error);
@@ -571,17 +608,10 @@ async function savePreferences() {
             user_agent: navigator.userAgent
         };
         
-        const response = await fetch(`${BACKEND_URL}/api/save-preferences`, {
+        const response = await safeFetch(`${BACKEND_URL}/api/save-preferences`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Origin': window.location.origin
-            },
             body: JSON.stringify(submission)
         });
-        
-        if (!response.ok) throw new Error('Failed to save preferences');
         
         // Update dataset info after saving
         await updateDatasetInfo();
@@ -703,9 +733,7 @@ async function findSimilarSegments() {
     }
 
     try {
-        const response = await fetch(`${BACKEND_URL}/api/get-similar-segments?segment_index=${segmentIndex}&k=${k}&dataset=${currentDataset}`);
-        if (!response.ok) throw new Error('Failed to fetch similar segments');
-        
+        const response = await safeFetch(`${BACKEND_URL}/api/get-similar-segments?segment_index=${segmentIndex}&k=${k}&dataset=${currentDataset}`);
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         
@@ -778,9 +806,7 @@ function handleAcquisitionChange(event) {
 // Function to load the next pair based on current acquisition method
 async function loadNextPair() {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/get-next-pair?dataset=${currentDataset}&acquisition=${currentAcquisition}`);
-        if (!response.ok) throw new Error('Failed to fetch next pair');
-        
+        const response = await safeFetch(`${BACKEND_URL}/api/get-next-pair?dataset=${currentDataset}&acquisition=${currentAcquisition}`);
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         
