@@ -744,6 +744,99 @@ def get_similar_segments():
         app.logger.error(f"Error finding similar segments: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/get-next-pair', methods=['GET'])
+def get_next_pair():
+    try:
+        dataset = request.args.get('dataset', 'assembly-v2')
+        acquisition = request.args.get('acquisition', 'random')  # random, entropy, or disagreement
+        dataset_dir = os.path.join('data', dataset)
+        
+        # Load segment pairs to get total number of pairs
+        segment_pairs = np.load(os.path.join(dataset_dir, 'segment_pairs.npy'))
+        total_pairs = len(segment_pairs)
+        
+        # Get labeled pairs
+        dataset_pref_dir = os.path.join(dataset_dir, 'preferences')
+        os.makedirs(dataset_pref_dir, exist_ok=True)
+        
+        labeled_pairs = set()
+        for file in os.listdir(dataset_pref_dir):
+            if file.endswith('.json'):
+                with open(os.path.join(dataset_pref_dir, file), 'r') as f:
+                    prefs = json.load(f)
+                    for pref in prefs.get('preferences', []):
+                        labeled_pairs.add(pref.get('pair_index'))
+        
+        # Get all unlabeled pair indices
+        all_indices = set(range(total_pairs))
+        unlabeled_indices = list(all_indices - labeled_pairs)
+        
+        if not unlabeled_indices:
+            return jsonify({'message': 'All pairs have been labeled', 'pair_index': 0})
+        
+        # Select next pair based on acquisition method
+        next_index = 0
+        if acquisition == 'random':
+            next_index = random.choice(unlabeled_indices)
+        elif acquisition == 'entropy':
+            # Load entropy scores if they exist
+            entropy_file = os.path.join(dataset_dir, 'entropy_scores.pkl')
+            if os.path.exists(entropy_file):
+                with open(entropy_file, 'rb') as f:
+                    entropy_scores = pickle.load(f)
+                # Filter for unlabeled pairs and get the one with highest entropy
+                unlabeled_scores = [(i, entropy_scores[i]) for i in unlabeled_indices]
+                next_index = max(unlabeled_scores, key=lambda x: x[1])[0]
+            else:
+                # Fall back to random if no entropy scores
+                next_index = random.choice(unlabeled_indices)
+        elif acquisition == 'disagreement':
+            # Load disagreement scores if they exist
+            disagreement_file = os.path.join(dataset_dir, 'disagreement_scores.pkl')
+            if os.path.exists(disagreement_file):
+                with open(disagreement_file, 'rb') as f:
+                    disagreement_scores = pickle.load(f)
+                # Filter for unlabeled pairs and get the one with highest disagreement
+                unlabeled_scores = [(i, disagreement_scores[i]) for i in unlabeled_indices]
+                next_index = max(unlabeled_scores, key=lambda x: x[1])[0]
+            else:
+                # Fall back to random if no disagreement scores
+                next_index = random.choice(unlabeled_indices)
+        else:
+            next_index = random.choice(unlabeled_indices)
+        
+        # Get the segments for this pair
+        segments = segment_pairs[next_index]
+        
+        # Get acquisition scores if available
+        acquisition_score = None
+        if acquisition == 'entropy':
+            entropy_file = os.path.join(dataset_dir, 'entropy_scores.pkl')
+            if os.path.exists(entropy_file):
+                with open(entropy_file, 'rb') as f:
+                    entropy_scores = pickle.load(f)
+                acquisition_score = float(entropy_scores[next_index])
+        elif acquisition == 'disagreement':
+            disagreement_file = os.path.join(dataset_dir, 'disagreement_scores.pkl')
+            if os.path.exists(disagreement_file):
+                with open(disagreement_file, 'rb') as f:
+                    disagreement_scores = pickle.load(f)
+                acquisition_score = float(disagreement_scores[next_index])
+        
+        return jsonify({
+            'pair_index': next_index,
+            'segments': segments.tolist(),
+            'total_pairs': total_pairs,
+            'labeled_pairs': len(labeled_pairs),
+            'unlabeled_pairs': len(unlabeled_indices),
+            'acquisition_method': acquisition,
+            'acquisition_score': acquisition_score
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error getting next pair: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     try:
         # Check if running in production

@@ -40,15 +40,34 @@
         <div class="tab-content active" id="preferences-tab">
             <div class="dataset-info">
                 <p>Progress: <span id="labeled-count">0</span> labeled / <span id="total-count">0</span> total pairs (<span id="progress-percent">0</span>%)</p>
+                <p>Unlabeled pairs remaining: <span id="unlabeled-count">0</span></p>
+                <div class="acquisition-control">
+                    <label for="acquisition-select">Acquisition Method:</label>
+                    <select id="acquisition-select">
+                        <option value="random">Random</option>
+                        <option value="entropy">Entropy-based</option>
+                        <option value="disagreement">Disagreement-based</option>
+                    </select>
+                    <div class="acquisition-info hidden">
+                        <p>Current Score: <span id="acquisition-score">-</span></p>
+                    </div>
+                </div>
             </div>
             <p>Please watch both trajectories and select which one you prefer.</p>
             
-            <div class="segment-info">
-                <p class="segment-indices">Current Segments: <span id="segment-a">-</span> vs <span id="segment-b">-</span></p>
-                <div class="pair-index-control">
-                    <label for="pair-index-input">Pair Index:</label>
-                    <input type="number" id="pair-index-input" min="0" step="1">
-                    <button id="go-to-pair" class="nav-button">Go</button>
+            <div class="pair-info">
+                <div class="current-pair">
+                    <h3>Current Pair</h3>
+                    <p>Pair Index: <span id="current-pair-index">-</span></p>
+                    <p>Comparing Segments: <span id="segment-a">-</span> vs <span id="segment-b">-</span></p>
+                </div>
+                <div class="pair-navigation">
+                    <div class="pair-index-control">
+                        <label for="pair-index-input">Go to Pair:</label>
+                        <input type="number" id="pair-index-input" min="0" step="1">
+                        <button id="go-to-pair" class="nav-button">Go</button>
+                    </div>
+                    <button id="random-pair" class="nav-button">Random Unlabeled Pair</button>
                 </div>
             </div>
             

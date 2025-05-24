@@ -56,6 +56,17 @@ let goToPairButton;
 let currentRewardA = 0;
 let currentRewardB = 0;
 
+// Additional DOM elements
+let currentPairIndexDisplay;
+let randomPairButton;
+let unlabeledCountDisplay;
+let acquisitionSelect;
+let acquisitionInfo;
+let acquisitionScore;
+
+// Current acquisition method
+let currentAcquisition = 'random';
+
 // Function to initialize DOM elements
 function initializeDOMElements() {
     trajectoryAVideo = document.getElementById('trajectory-A');
@@ -92,6 +103,24 @@ function initializeDOMElements() {
     dissimilarSegmentsContainer = document.getElementById('dissimilar-segments-container');
     targetSegmentIndex = document.getElementById('target-segment-index');
     targetSegmentReward = document.getElementById('target-segment-reward');
+
+    // New elements
+    currentPairIndexDisplay = document.getElementById('current-pair-index');
+    randomPairButton = document.getElementById('random-pair');
+    unlabeledCountDisplay = document.getElementById('unlabeled-count');
+    acquisitionSelect = document.getElementById('acquisition-select');
+    acquisitionInfo = document.querySelector('.acquisition-info');
+    acquisitionScore = document.getElementById('acquisition-score');
+
+    // Add event listener for random pair button
+    if (randomPairButton) {
+        randomPairButton.addEventListener('click', loadNextPair);
+    }
+
+    // Add event listener for acquisition method change
+    if (acquisitionSelect) {
+        acquisitionSelect.addEventListener('change', handleAcquisitionChange);
+    }
 }
 
 // Event handler functions
@@ -273,7 +302,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                 return;
             }
             resetState();
-            loadTrajectoryPair();
+            // Load next pair using current acquisition method
+            loadNextPair();
         } catch (error) {
             console.error('Error in initialize function:', error.message, error.stack);
             showError(error);
@@ -594,7 +624,9 @@ function updateUI() {
     
     // Update navigation buttons
     if (prevPairButton) prevPairButton.disabled = currentPairIndex === 0 || isLoading || hasError;
-    if (nextPairButton) nextPairButton.disabled = isLoading || hasError;  // Remove any limit on next button
+    if (nextPairButton) nextPairButton.disabled = isLoading || hasError;
+    if (randomPairButton) randomPairButton.disabled = isLoading || hasError;
+    if (acquisitionSelect) acquisitionSelect.disabled = isLoading || hasError;
     
     // Update preference buttons
     const buttonsDisabled = isLoading || hasError;
@@ -602,10 +634,13 @@ function updateUI() {
     if (preferEqualButton) preferEqualButton.disabled = buttonsDisabled;
     if (preferBButton) preferBButton.disabled = buttonsDisabled;
     
-    // Update pair index input
+    // Update pair index displays
     if (pairIndexInput) {
         pairIndexInput.value = currentPairIndex;
         pairIndexInput.disabled = isLoading || hasError;
+    }
+    if (currentPairIndexDisplay) {
+        currentPairIndexDisplay.textContent = currentPairIndex;
     }
     if (goToPairButton) {
         goToPairButton.disabled = isLoading || hasError;
@@ -721,6 +756,69 @@ function goToPair() {
     }
     currentPairIndex = newIndex;
     loadTrajectoryPair();
+}
+
+// Function to handle acquisition method change
+function handleAcquisitionChange(event) {
+    currentAcquisition = event.target.value;
+    
+    // Show/hide acquisition info based on method
+    if (acquisitionInfo) {
+        if (currentAcquisition === 'random') {
+            acquisitionInfo.classList.add('hidden');
+        } else {
+            acquisitionInfo.classList.remove('hidden');
+        }
+    }
+    
+    // Load next pair with new acquisition method
+    loadNextPair();
+}
+
+// Function to load the next pair based on current acquisition method
+async function loadNextPair() {
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/get-next-pair?dataset=${currentDataset}&acquisition=${currentAcquisition}`);
+        if (!response.ok) throw new Error('Failed to fetch next pair');
+        
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        
+        // Update pair index and load the pair
+        currentPairIndex = data.pair_index;
+        
+        // Update UI elements
+        if (currentPairIndexDisplay) {
+            currentPairIndexDisplay.textContent = currentPairIndex;
+        }
+        if (unlabeledCountDisplay) {
+            unlabeledCountDisplay.textContent = data.unlabeled_pairs;
+        }
+        if (pairIndexInput) {
+            pairIndexInput.value = currentPairIndex;
+        }
+        
+        // Update acquisition score if available
+        if (acquisitionScore && data.acquisition_score !== null) {
+            acquisitionScore.textContent = data.acquisition_score.toFixed(4);
+            acquisitionInfo.classList.remove('hidden');
+        } else if (acquisitionInfo) {
+            acquisitionInfo.classList.add('hidden');
+        }
+        
+        // Load the trajectory pair
+        loadTrajectoryPair();
+        
+        // Update dataset info
+        document.getElementById('labeled-count').textContent = data.labeled_pairs;
+        document.getElementById('total-count').textContent = data.total_pairs;
+        document.getElementById('progress-percent').textContent = 
+            Math.round((data.labeled_pairs / data.total_pairs) * 100);
+            
+    } catch (error) {
+        console.error('Error loading next pair:', error);
+        showError(error);
+    }
 }
 
 window.showError = showError;
