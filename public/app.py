@@ -267,8 +267,12 @@ def get_trajectory_pair():
             app.logger.info(f"Extracting frames - A: {trajectory_a_start}:{trajectory_a_end}, B: {trajectory_b_start}:{trajectory_b_end}")
             
             # Get rewards for each segment
-            reward_a = float(trajectory_data['reward'][trajectory_a_start:trajectory_a_end].mean())
-            reward_b = float(trajectory_data['reward'][trajectory_b_start:trajectory_b_end].mean())
+            if "reward" in trajectory_data:
+                reward_a = float(trajectory_data['reward'][trajectory_a_start:trajectory_a_end].mean())
+                reward_b = float(trajectory_data['reward'][trajectory_b_start:trajectory_b_end].mean())
+            else:
+                reward_a = 0.0
+                reward_b = 0.0
             app.logger.info(f"Segment rewards - A: {reward_a}, B: {reward_b}")
 
             # Validate indices are within bounds of trajectory data
@@ -684,7 +688,10 @@ def get_similar_segments():
         if not os.path.exists(target_video_path):
             generate_video(target_frames.cpu().numpy(), target_video_path)
             
-        target_reward = float(trajectory_data['reward'][target_start:target_end].mean())
+        if "reward" in trajectory_data:
+            target_reward = float(trajectory_data['reward'][target_start:target_end].mean())
+        else:
+            target_reward = 0.0
         results['target'] = {
             'segment_index': int(segment_index),
             'video_url': f"{base_url}/videos/{os.path.basename(target_video_path)}",
@@ -705,7 +712,10 @@ def get_similar_segments():
                 frames = trajectory_data['image'][start:end]
                 generate_video(frames.cpu().numpy(), video_path)
                 
-            reward = float(trajectory_data['reward'][start:end].mean())
+            if "reward" in trajectory_data:
+                reward = float(trajectory_data['reward'][start:end].mean())
+            else:
+                reward = 0.0
             dtw_dist = float(target_distances[sim_idx])
             similarity = np.exp(-dtw_dist/scale)
             
@@ -726,7 +736,10 @@ def get_similar_segments():
                 frames = trajectory_data['image'][start:end]
                 generate_video(frames.cpu().numpy(), video_path)
                 
-            reward = float(trajectory_data['reward'][start:end].mean())
+            if "reward" in trajectory_data:
+                reward = float(trajectory_data['reward'][start:end].mean())
+            else:
+                reward = 0.0
             dtw_dist = float(target_distances[dis_idx])
             similarity = np.exp(-dtw_dist/scale)
             
