@@ -44,8 +44,13 @@ let kValueInput;
 let findSimilarButton;
 let targetSegmentVideo;
 let similarSegmentsContainer;
+let dissimilarSegmentsContainer;
 let targetSegmentIndex;
 let targetSegmentReward;
+
+// Additional DOM elements
+let pairIndexInput;
+let goToPairButton;
 
 // Current pair rewards
 let currentRewardA = 0;
@@ -72,6 +77,10 @@ function initializeDOMElements() {
     preferredTrajectoryElement = document.getElementById('preferred-trajectory');
     agreementStatusElement = document.getElementById('agreement-status');
 
+    // New elements for pair index control
+    pairIndexInput = document.getElementById('pair-index-input');
+    goToPairButton = document.getElementById('go-to-pair');
+
     // New elements for similar segments tab
     tabButtons = document.querySelectorAll('.tab-button');
     tabContents = document.querySelectorAll('.tab-content');
@@ -80,6 +89,7 @@ function initializeDOMElements() {
     findSimilarButton = document.getElementById('find-similar');
     targetSegmentVideo = document.getElementById('target-segment-video');
     similarSegmentsContainer = document.getElementById('similar-segments-container');
+    dissimilarSegmentsContainer = document.getElementById('dissimilar-segments-container');
     targetSegmentIndex = document.getElementById('target-segment-index');
     targetSegmentReward = document.getElementById('target-segment-reward');
 }
@@ -176,6 +186,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Add similar segments search event listener
     if (findSimilarButton) {
         findSimilarButton.addEventListener('click', findSimilarSegments);
+    }
+
+    // Add pair index control event listeners
+    if (goToPairButton) {
+        goToPairButton.addEventListener('click', goToPair);
+    }
+    if (pairIndexInput) {
+        pairIndexInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                goToPair();
+            }
+        });
     }
 
     // Prevent page refresh on form submission
@@ -579,6 +601,15 @@ function updateUI() {
     if (preferAButton) preferAButton.disabled = buttonsDisabled;
     if (preferEqualButton) preferEqualButton.disabled = buttonsDisabled;
     if (preferBButton) preferBButton.disabled = buttonsDisabled;
+    
+    // Update pair index input
+    if (pairIndexInput) {
+        pairIndexInput.value = currentPairIndex;
+        pairIndexInput.disabled = isLoading || hasError;
+    }
+    if (goToPairButton) {
+        goToPairButton.disabled = isLoading || hasError;
+    }
 }
 
 function restartSession() {
@@ -604,6 +635,28 @@ function switchTab(tabId) {
     });
 }
 
+// Function to create a segment card
+function createSegmentCard(segment, type) {
+    const card = document.createElement('div');
+    card.className = 'similar-segment-card';
+    card.innerHTML = `
+        <div class="video-container">
+            <video controls loop>
+                <source src="${segment.video_url}" type="video/mp4">
+                Your browser does not support video playback.
+            </video>
+        </div>
+        <div class="segment-info">
+            <p>Segment Index: ${segment.segment_index}</p>
+            <p>DTW Distance: <span class="dtw-distance">${segment.dtw_distance.toFixed(4)}</span></p>
+            <p>Similarity Score: <span class="similarity-score">${segment.similarity.toFixed(4)}</span></p>
+            <p>Reward: ${segment.reward.toFixed(4)}</p>
+            <p class="segment-type ${type}">${type === 'similar' ? 'Similar' : 'Dissimilar'}</p>
+        </div>
+    `;
+    return card;
+}
+
 // Function to find similar segments
 async function findSimilarSegments() {
     const segmentIndex = segmentIndexInput.value;
@@ -622,7 +675,7 @@ async function findSimilarSegments() {
         if (data.error) throw new Error(data.error);
         
         // Display target segment
-        const targetSegment = data.segments[0];
+        const targetSegment = data.target;
         targetSegmentVideo.src = targetSegment.video_url;
         targetSegmentVideo.load();
         targetSegmentVideo.play();
@@ -632,35 +685,42 @@ async function findSimilarSegments() {
         
         // Display similar segments
         similarSegmentsContainer.innerHTML = '';
-        for (let i = 1; i < data.segments.length; i++) {
-            const segment = data.segments[i];
-            const card = document.createElement('div');
-            card.className = 'similar-segment-card';
-            card.innerHTML = `
-                <div class="video-container">
-                    <video controls loop>
-                        <source src="${segment.video_url}" type="video/mp4">
-                        Your browser does not support video playback.
-                    </video>
-                </div>
-                <div class="segment-info">
-                    <p>Segment Index: ${segment.segment_index}</p>
-                    <p>DTW Distance: <span class="dtw-distance">${segment.dtw_distance.toFixed(4)}</span></p>
-                    <p>Similarity Score: <span class="similarity-score">${segment.similarity.toFixed(4)}</span></p>
-                    <p>Reward: ${segment.reward.toFixed(4)}</p>
-                </div>
-            `;
+        data.similar.forEach(segment => {
+            const card = createSegmentCard(segment, 'similar');
             similarSegmentsContainer.appendChild(card);
             
             // Start playing the video
             const video = card.querySelector('video');
             video.load();
             video.play();
-        }
+        });
+
+        // Display dissimilar segments
+        dissimilarSegmentsContainer.innerHTML = '';
+        data.dissimilar.forEach(segment => {
+            const card = createSegmentCard(segment, 'dissimilar');
+            dissimilarSegmentsContainer.appendChild(card);
+            
+            // Start playing the video
+            const video = card.querySelector('video');
+            video.load();
+            video.play();
+        });
     } catch (error) {
         console.error('Error finding similar segments:', error);
         showError(error);
     }
+}
+
+// Function to go to specific pair
+function goToPair() {
+    const newIndex = parseInt(pairIndexInput.value);
+    if (isNaN(newIndex) || newIndex < 0) {
+        showError(new Error('Please enter a valid pair index'));
+        return;
+    }
+    currentPairIndex = newIndex;
+    loadTrajectoryPair();
 }
 
 window.showError = showError;

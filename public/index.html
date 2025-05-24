@@ -45,6 +45,11 @@
             
             <div class="segment-info">
                 <p class="segment-indices">Current Segments: <span id="segment-a">-</span> vs <span id="segment-b">-</span></p>
+                <div class="pair-index-control">
+                    <label for="pair-index-input">Pair Index:</label>
+                    <input type="number" id="pair-index-input" min="0" step="1">
+                    <button id="go-to-pair" class="nav-button">Go</button>
+                </div>
             </div>
             
             <div class="preference-info hidden" id="preference-summary">
@@ -126,9 +131,16 @@
             </div>
 
             <div class="similar-segments">
-                <h2>Similar Segments</h2>
+                <h2>Most Similar Segments</h2>
                 <div id="similar-segments-container">
                     <!-- Similar segments will be added here dynamically -->
+                </div>
+            </div>
+
+            <div class="dissimilar-segments">
+                <h2>Most Dissimilar Segments</h2>
+                <div id="dissimilar-segments-container">
+                    <!-- Dissimilar segments will be added here dynamically -->
                 </div>
             </div>
         </div>

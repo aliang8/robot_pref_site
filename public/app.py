@@ -17,6 +17,7 @@ import signal
 import sys
 import traceback
 from werkzeug.serving import WSGIRequestHandler
+import pickle
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -616,7 +617,7 @@ def get_similar_segments():
         # Get parameters
         dataset = request.args.get('dataset', 'assembly-v2')
         segment_index = request.args.get('segment_index')
-        k = int(request.args.get('k', '5'))  # Number of similar segments to return
+        k = int(request.args.get('k', '5'))  # Number of similar/dissimilar segments to return
         
         if segment_index is None:
             return jsonify({'error': 'Missing segment_index parameter'}), 400
@@ -648,7 +649,6 @@ def get_similar_segments():
         if not os.path.exists(dtw_matrix_path):
             return jsonify({'error': 'DTW distance matrix not found'}), 404
             
-        import pickle
         with open(dtw_matrix_path, 'rb') as f:
             dtw_distances, _  = pickle.load(f)
         
@@ -657,17 +657,24 @@ def get_similar_segments():
         print(target_distances.shape)
         
         # Get indices sorted by distance (excluding the target segment itself)
-        similar_indices = np.argsort(target_distances)
+        all_indices = np.argsort(target_distances)
         # Remove the target segment (which would have distance 0 to itself)
-        similar_indices = similar_indices[similar_indices != segment_index]
-        # Take only k segments
-        similar_indices = similar_indices[:k]
+        all_indices = all_indices[all_indices != segment_index]
+        
+        # Get k most similar (lowest DTW) and k most dissimilar (highest DTW)
+        similar_indices = all_indices[:k]  # First k are most similar
+        dissimilar_indices = all_indices[-k:][::-1]  # Last k are most dissimilar (reverse to get highest DTW first)
 
-        print(similar_indices)
+        print("Similar indices:", similar_indices)
+        print("Dissimilar indices:", dissimilar_indices)
         
         # Generate videos for all segments
         base_url = request.host_url.rstrip('/')
-        results = []
+        results = {
+            'target': None,
+            'similar': [],
+            'dissimilar': []
+        }
         
         # First add the target segment
         target_start, target_end = segment_indices[segment_index]
@@ -678,15 +685,18 @@ def get_similar_segments():
             generate_video(target_frames.cpu().numpy(), target_video_path)
             
         target_reward = float(trajectory_data['reward'][target_start:target_end].mean())
-        results.append({
+        results['target'] = {
             'segment_index': int(segment_index),
             'video_url': f"{base_url}/videos/{os.path.basename(target_video_path)}",
             'similarity': 1.0,  # Self-similarity is 1
             'reward': target_reward,
             'dtw_distance': 0.0  # Distance to self is 0
-        })
+        }
         
-        # Then add similar segments
+        # Calculate scale for similarity scores
+        scale = np.mean(target_distances[target_distances > 0])
+        
+        # Add similar segments
         for sim_idx in similar_indices:
             start, end = segment_indices[sim_idx]
             video_path = os.path.join(VIDEO_DIR, f"{dataset}_segment_{sim_idx}.mp4")
@@ -697,22 +707,38 @@ def get_similar_segments():
                 
             reward = float(trajectory_data['reward'][start:end].mean())
             dtw_dist = float(target_distances[sim_idx])
-            
-            # Convert DTW distance to a similarity score between 0 and 1
-            # Using exponential decay: similarity = exp(-distance/scale)
-            # where scale is set to the mean non-zero DTW distance
-            scale = np.mean(target_distances[target_distances > 0])
             similarity = np.exp(-dtw_dist/scale)
             
-            results.append({
+            results['similar'].append({
                 'segment_index': int(sim_idx),
                 'video_url': f"{base_url}/videos/{os.path.basename(video_path)}",
                 'similarity': similarity,
                 'reward': reward,
                 'dtw_distance': dtw_dist
             })
+            
+        # Add dissimilar segments
+        for dis_idx in dissimilar_indices:
+            start, end = segment_indices[dis_idx]
+            video_path = os.path.join(VIDEO_DIR, f"{dataset}_segment_{dis_idx}.mp4")
+            
+            if not os.path.exists(video_path):
+                frames = trajectory_data['image'][start:end]
+                generate_video(frames.cpu().numpy(), video_path)
+                
+            reward = float(trajectory_data['reward'][start:end].mean())
+            dtw_dist = float(target_distances[dis_idx])
+            similarity = np.exp(-dtw_dist/scale)
+            
+            results['dissimilar'].append({
+                'segment_index': int(dis_idx),
+                'video_url': f"{base_url}/videos/{os.path.basename(video_path)}",
+                'similarity': similarity,
+                'reward': reward,
+                'dtw_distance': dtw_dist
+            })
         
-        return jsonify({'segments': results})
+        return jsonify(results)
         
     except Exception as e:
         app.logger.error(f"Error finding similar segments: {str(e)}", exc_info=True)
