@@ -2,3 +2,4 @@ temp_videos/*
 data/*
 logs/*
 *.pyc
+*.log

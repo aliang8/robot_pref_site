@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.log('Dataset changed to:', datasetSelect?.value);
         currentDataset = datasetSelect.value;
         await updateDatasetInfo();
-        restartSession();
+        loadNextPair();  // Load a random pair from the new dataset
     };
 
     // Function to reset state

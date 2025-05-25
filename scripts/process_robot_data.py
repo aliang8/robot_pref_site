@@ -23,7 +23,8 @@ def load_trajectory(traj_dir):
     # Load images
     img_dir = os.path.join(traj_dir, 'external_imgs')
     images = []
-    for img_path in sorted(glob.glob(os.path.join(img_dir, '*.jpg'))):
+    img_files = sorted(glob.glob(os.path.join(img_dir, '*.jpg')), key=lambda x: int(x.split('/')[-1].split('.')[0].split('_')[-1]))
+    for img_path in img_files:
         img = Image.open(img_path)
         img = np.array(img)
         images.append(img)

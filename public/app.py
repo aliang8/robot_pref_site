@@ -30,7 +30,8 @@ CORS(app, resources={
             "http://localhost:8000",
             "http://localhost:5501",
             "https://aliang8.github.io",  # Add GitHub Pages domain
-            "https://snoopy1.usc.edu:8443"
+            "https://snoopy1.usc.edu:8443",
+            "http://10.136.20.183:5500"  # Add your IP address
         ],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
@@ -147,7 +148,8 @@ def after_request(response):
         "http://localhost:8000",
         "http://localhost:5501",
         "https://aliang8.github.io",
-        "https://snoopy1.usc.edu:8443"
+        "https://snoopy1.usc.edu:8443",
+        "http://10.136.20.183:5500"
     ]
     
     if origin in allowed_origins:
@@ -849,6 +851,15 @@ def get_next_pair():
     except Exception as e:
         app.logger.error(f"Error getting next pair: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+# Add static file serving
+@app.route('/')
+def serve_index():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('.', path)
 
 if __name__ == '__main__':
     try:
