@@ -421,6 +421,14 @@ def get_dataset_info():
         total_pairs = len(segment_pairs)
         app.logger.info(f"Total pairs: {total_pairs}")
         
+        # Load segment indices to get total number of segments
+        segment_indices_path = os.path.join(dataset_dir, 'segment_start_end_indices.npy')
+        total_segments = 0
+        if os.path.exists(segment_indices_path):
+            segment_indices = np.load(segment_indices_path)
+            total_segments = len(segment_indices.reshape(-1, 2))
+            app.logger.info(f"Total segments: {total_segments}")
+        
         # Count labeled pairs from preferences directory
         dataset_pref_dir = os.path.join(dataset_dir, 'preferences')
         labeled_pairs = set()
@@ -444,7 +452,8 @@ def get_dataset_info():
         return jsonify({
             'total_pairs': total_pairs,
             'labeled_pairs': num_labeled,
-            'unlabeled_pairs': total_pairs - num_labeled
+            'unlabeled_pairs': total_pairs - num_labeled,
+            'total_segments': total_segments
         })
     
     except Exception as e:

@@ -16,7 +16,8 @@ let currentDataset = 'assembly-v2';
 let datasetInfo = {
     total_pairs: 0,
     labeled_pairs: 0,
-    unlabeled_pairs: 0
+    unlabeled_pairs: 0,
+    total_segments: 0
 };
 
 // Function to get random pair index
@@ -212,6 +213,19 @@ function setupEventListeners() {
             currentPairIndex = getRandomPairIndex();
             console.log(`Dataset changed to ${currentDataset}, loading random pair: ${currentPairIndex} (max: ${maxSegments})`);
             loadTrajectoryPair();
+            
+            // Update segment index input for similar segments tab with new dataset bounds
+            if (elements.segmentIndexInput && datasetInfo.total_segments > 0) {
+                const randomSegmentIndex = Math.floor(Math.random() * datasetInfo.total_segments);
+                elements.segmentIndexInput.value = randomSegmentIndex;
+                console.log(`Updated segment index for new dataset to: ${randomSegmentIndex} (max: ${datasetInfo.total_segments - 1})`);
+                
+                // If we're currently on the similar segments tab, automatically load the new random segment
+                const currentTab = document.querySelector('.tab-content.active');
+                if (currentTab && currentTab.id === 'similar-tab') {
+                    findSimilarSegments();
+                }
+            }
         });
     }
     
@@ -253,10 +267,7 @@ function setupEventListeners() {
         randomSegmentButton.addEventListener('click', loadRandomSimilarSegment);
     }
     
-    // Set default value for segment index input
-    if (elements.segmentIndexInput && !elements.segmentIndexInput.value) {
-        elements.segmentIndexInput.value = Math.floor(Math.random() * Math.min(maxSegments, 1000));
-    }
+    // Note: segment index input will be set after dataset info is loaded
     
     // Error popup buttons
     const errorReloadButton = document.getElementById('error-reload');
@@ -408,6 +419,8 @@ async function updateDatasetInfo() {
         
         datasetInfo = data;
         
+        console.log(`Dataset info updated: ${data.total_pairs} pairs, ${data.total_segments} segments`);
+        
         // Update regular preference collection info
         const totalCountElement = document.getElementById('total-count');
         const labeledCountElement = document.getElementById('labeled-count'); 
@@ -426,6 +439,14 @@ async function updateDatasetInfo() {
         if (elements.activeUnlabeledCount) elements.activeUnlabeledCount.textContent = data.unlabeled_pairs;
         
         maxSegments = data.total_pairs;
+        
+        // Set initial segment index input value with proper bounds
+        if (elements.segmentIndexInput && !elements.segmentIndexInput.value && data.total_segments > 0) {
+            const randomSegmentIndex = Math.floor(Math.random() * data.total_segments);
+            elements.segmentIndexInput.value = randomSegmentIndex;
+            console.log(`Set initial segment index to: ${randomSegmentIndex}`);
+        }
+        
         console.log('Dataset info updated successfully');
     } catch (error) {
         console.error('Error updating dataset info:', error);
@@ -772,8 +793,11 @@ function switchTab(tabId) {
 
 // Function to load a random similar segment
 function loadRandomSimilarSegment() {
-    // Generate a random segment index (0 to maxSegments-1)
-    const randomIndex = Math.floor(Math.random() * Math.min(maxSegments, 1000)); // Cap at 1000 for reasonable range
+    // Generate a random segment index (0 to total_segments-1)
+    const maxSegmentIndex = datasetInfo.total_segments > 0 ? datasetInfo.total_segments - 1 : 999;
+    const randomIndex = Math.floor(Math.random() * (maxSegmentIndex + 1));
+    
+    console.log(`Generated random segment index: ${randomIndex} (max available: ${maxSegmentIndex})`);
     
     // Set the input value
     if (elements.segmentIndexInput) {
