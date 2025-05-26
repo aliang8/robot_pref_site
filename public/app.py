@@ -694,15 +694,16 @@ def generate_video(frames, output_path):
 
 @app.route('/api/get-similar-segments', methods=['GET'])
 def get_similar_segments():
-    """Get similar segments based on DTW distance."""
+    """Get similar segments based on DTW or S-DTW distance."""
     try:
         app.logger.info("Received request for similar segments")
         # Get parameters
         dataset = request.args.get('dataset', 'assembly-v2')
         segment_index = request.args.get('segment_index')
         k = int(request.args.get('k', '5'))  # Number of similar/dissimilar segments to return
+        dtw_type = request.args.get('dtw_type', 'dtw')  # 'dtw' or 'sdtw'
         
-        app.logger.info(f"Parameters - dataset: {dataset}, segment_index: {segment_index}, k: {k}")
+        app.logger.info(f"Parameters - dataset: {dataset}, segment_index: {segment_index}, k: {k}, dtw_type: {dtw_type}")
         
         if segment_index is None:
             return jsonify({'error': 'Missing segment_index parameter'}), 400
@@ -712,20 +713,35 @@ def get_similar_segments():
         except ValueError:
             return jsonify({'error': 'Invalid segment_index format'}), 400
             
+        if dtw_type not in ['dtw', 'sdtw']:
+            return jsonify({'error': 'Invalid dtw_type. Must be "dtw" or "sdtw"'}), 400
+            
         # Load dataset
         dataset_dir = os.path.join(DATA_DIR, dataset)
         if not os.path.exists(dataset_dir):
             return jsonify({'error': f'Dataset {dataset} not found'}), 404
             
-        dtw_matrix_path_pkl = os.path.join(dataset_dir, 'dtw_matrix_32.pkl')
+        # Determine matrix file based on dtw_type
+        if dtw_type == 'sdtw':
+            matrix_file = os.path.join(dataset_dir, 'sdtw_matrix_32.pkl')
+            fallback_file = os.path.join(dataset_dir, 'sdtw_matrix.pkl')
+        else:
+            matrix_file = os.path.join(dataset_dir, 'dtw_matrix_32.pkl')
+            fallback_file = os.path.join(dataset_dir, 'dtw_matrix.pkl')
         
         dtw_matrix = None
-        if os.path.exists(dtw_matrix_path_pkl):
+        if os.path.exists(matrix_file):
             import pickle
-            with open(dtw_matrix_path_pkl, 'rb') as f:
+            with open(matrix_file, 'rb') as f:
                 dtw_matrix, _ = pickle.load(f)
+            app.logger.info(f"Loaded {dtw_type.upper()} matrix from {matrix_file}")
+        elif os.path.exists(fallback_file):
+            import pickle
+            with open(fallback_file, 'rb') as f:
+                dtw_matrix, _ = pickle.load(f)
+            app.logger.info(f"Loaded {dtw_type.upper()} matrix from fallback {fallback_file}")
         else:
-            return jsonify({'error': 'DTW matrix not found. Looked for dtw_matrix.npy, dtw_matrix_32.pkl, or dtw_matrix.pkl'}), 404
+            return jsonify({'error': f'{dtw_type.upper()} matrix not found. Looked for {matrix_file} and {fallback_file}'}), 404
         
         # Validate segment_index is within bounds
         if segment_index >= len(dtw_matrix) or segment_index < 0:

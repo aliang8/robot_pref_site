@@ -246,6 +246,13 @@
                     <label for="k-value">Number of similar segments (k):</label>
                     <input type="number" id="k-value" min="1" max="10" value="5" step="1">
                 </div>
+                <div class="dtw-type-input">
+                    <label for="dtw-type-select">DTW Type:</label>
+                    <select id="dtw-type-select">
+                        <option value="dtw">DTW</option>
+                        <option value="sdtw">S-DTW</option>
+                    </select>
+                </div>
                 <button id="find-similar" class="search-button">Find Similar Segments</button>
                 <button id="random-segment" class="nav-button">Random Segment</button>
             </div>

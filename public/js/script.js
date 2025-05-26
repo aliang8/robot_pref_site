@@ -137,6 +137,7 @@ function initializeDOMElements() {
     // Initialize similar segments elements
     elements.segmentIndexInput = document.getElementById('segment-index-input');
     elements.kValueInput = document.getElementById('k-value');
+    elements.dtwTypeSelect = document.getElementById('dtw-type-select');
     elements.findSimilarButton = document.getElementById('find-similar');
     elements.targetSegmentVideo = document.getElementById('target-segment-video');
     elements.targetSegmentIndex = document.getElementById('target-segment-index');
@@ -259,6 +260,16 @@ function setupEventListeners() {
     // Similar segments controls
     if (elements.findSimilarButton) {
         elements.findSimilarButton.addEventListener('click', findSimilarSegments);
+    }
+    
+    // DTW type selector
+    if (elements.dtwTypeSelect) {
+        elements.dtwTypeSelect.addEventListener('change', () => {
+            // Re-run search when DTW type changes if we have a segment loaded
+            if (elements.segmentIndexInput && elements.segmentIndexInput.value) {
+                findSimilarSegments();
+            }
+        });
     }
     
     // Random segment button
@@ -679,19 +690,19 @@ async function savePreferences() {
         } catch (error) {
         console.error('Error saving preferences:', error);
         showError('Error saving preferences: ' + error.message);
+        }
     }
-}
-
+    
 // Navigation functions
-function showPreviousPair() {
+    function showPreviousPair() {
     console.log('SHOW_PREVIOUS_PAIR called.');
     if (isLoading || hasError) {
         console.log('ShowPreviousPair: Skipping due to loading or error state.');
         return;
     }
 
-    if (currentPairIndex > 0) {
-        currentPairIndex--;
+        if (currentPairIndex > 0) {
+            currentPairIndex--;
         console.log(`ShowPreviousPair: Moving to pair index ${currentPairIndex}`);
         loadTrajectoryPair();
     }
@@ -813,6 +824,7 @@ async function findSimilarSegments() {
     try {
         const segmentIndex = parseInt(elements.segmentIndexInput.value);
         const k = parseInt(elements.kValueInput.value) || 5;
+        const dtwType = elements.dtwTypeSelect ? elements.dtwTypeSelect.value : 'dtw';
         
         if (isNaN(segmentIndex)) {
             showError('Please enter a valid segment index');
@@ -830,7 +842,7 @@ async function findSimilarSegments() {
         elements.findSimilarButton.disabled = true;
         elements.findSimilarButton.textContent = 'Loading...';
         
-        const response = await safeFetch(`${BACKEND_URL}/api/get-similar-segments?dataset=${currentDataset}&segment_index=${segmentIndex}&k=${k}`);
+        const response = await safeFetch(`${BACKEND_URL}/api/get-similar-segments?dataset=${currentDataset}&segment_index=${segmentIndex}&k=${k}&dtw_type=${dtwType}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -838,6 +850,20 @@ async function findSimilarSegments() {
         
         // Load target segment video
         if (data.target) {
+            // Configure video properties
+            elements.targetSegmentVideo.loop = true;
+            elements.targetSegmentVideo.muted = true;
+            elements.targetSegmentVideo.playsInline = true;
+            elements.targetSegmentVideo.preload = 'auto';
+            
+            // Set up video loading with autoplay
+            elements.targetSegmentVideo.addEventListener('loadeddata', () => {
+                console.log(`Target video loaded: ${data.target.video_url}`);
+                elements.targetSegmentVideo.play().catch(error => {
+                    console.error(`Error playing target video:`, error);
+                });
+            }, { once: true }); // Use once to avoid duplicate listeners
+            
             elements.targetSegmentVideo.src = data.target.video_url;
             elements.targetSegmentIndex.textContent = data.target.segment_index;
             elements.targetSegmentReward.textContent = data.target.reward.toFixed(3);
@@ -912,8 +938,9 @@ function createSegmentCard(segment, type) {
     const segmentInfo = document.createElement('p');
     segmentInfo.innerHTML = `<strong>Segment:</strong> ${segment.segment_index}`;
     
+    const dtwType = elements.dtwTypeSelect ? elements.dtwTypeSelect.value.toUpperCase() : 'DTW';
     const distanceInfo = document.createElement('p');
-    distanceInfo.innerHTML = `<strong>DTW Distance:</strong> ${segment.distance.toFixed(3)}`;
+    distanceInfo.innerHTML = `<strong>${dtwType} Distance:</strong> ${segment.distance.toFixed(3)}`;
     
     const rewardInfo = document.createElement('p');
     rewardInfo.innerHTML = `<strong>Reward:</strong> ${segment.reward !== undefined ? segment.reward.toFixed(3) : 'N/A'}`;
