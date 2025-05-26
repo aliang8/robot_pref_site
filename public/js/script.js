@@ -894,11 +894,6 @@ function createSegmentCard(segment, type) {
     const card = document.createElement('div');
     card.className = `similar-segment-card ${type}`;
     
-    // Create type label
-    const typeLabel = document.createElement('div');
-    typeLabel.className = `segment-type ${type}`;
-    typeLabel.textContent = type === 'similar' ? 'Similar' : 'Dissimilar';
-    
     // Create video container
     const videoContainer = document.createElement('div');
     videoContainer.className = 'video-container';
@@ -932,27 +927,31 @@ function createSegmentCard(segment, type) {
     videoContainer.appendChild(video);
     
     // Create info section
+    const infoSection = document.createElement('div');
+    infoSection.className = 'segment-info-section';
+    
     const info = document.createElement('div');
     info.className = 'segment-info';
     
     const segmentInfo = document.createElement('p');
-    segmentInfo.innerHTML = `<strong>Segment:</strong> ${segment.segment_index}`;
+    segmentInfo.innerHTML = `<strong>Segment:</strong> <span class="segment-number">${segment.segment_index}</span>`;
     
     const dtwType = elements.dtwTypeSelect ? elements.dtwTypeSelect.value.toUpperCase() : 'DTW';
     const distanceInfo = document.createElement('p');
-    distanceInfo.innerHTML = `<strong>${dtwType} Distance:</strong> ${segment.distance.toFixed(3)}`;
+    distanceInfo.innerHTML = `<strong>${dtwType}:</strong> <span class="distance-value">${segment.distance.toFixed(3)}</span>`;
     
     const rewardInfo = document.createElement('p');
-    rewardInfo.innerHTML = `<strong>Reward:</strong> ${segment.reward !== undefined ? segment.reward.toFixed(3) : 'N/A'}`;
+    rewardInfo.innerHTML = `<strong>Reward:</strong> <span class="reward-value">${segment.reward !== undefined ? segment.reward.toFixed(3) : 'N/A'}</span>`;
     
     info.appendChild(segmentInfo);
     info.appendChild(distanceInfo);
     info.appendChild(rewardInfo);
     
-    // Assemble the card
-    card.appendChild(typeLabel);
+    infoSection.appendChild(info);
+    
+    // Assemble the card (side-by-side layout)
     card.appendChild(videoContainer);
-    card.appendChild(info);
+    card.appendChild(infoSection);
     
     return card;
 }
