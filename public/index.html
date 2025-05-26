@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Trajectory Preference Collection</title>
     <link rel="stylesheet" href="css/styles.css">
+
 </head>
 <body>
-    <!-- Add error popup -->
+    <!-- Error popup -->
     <div id="error-popup" class="error-popup hidden">
         <div class="error-content">
             <h3>Error</h3>
@@ -19,40 +20,43 @@
         </div>
     </div>
 
+    <!-- Training status popup -->
+    <div id="training-popup" class="training-popup hidden">
+        <div class="training-content">
+            <h3>Training Reward Model</h3>
+            <p>Please wait while the reward model is being trained...</p>
+            <div class="loading-spinner"></div>
+            <p id="training-status"></p>
+        </div>
+    </div>
+
     <div class="container">
         <header>
-            <h1>Robot Trajectory Analysis</h1>
-            <div class="dataset-selection">
+            <h1>Robot Preference Collection</h1>
+            <!-- Dataset selector -->
+            <div class="dataset-selector">
                 <label for="dataset-select">Select Dataset:</label>
                 <select id="dataset-select">
-                    <option value="">Loading datasets...</option>
+                    <option value="" disabled selected>Loading datasets...</option>
                 </select>
             </div>
         </header>
-
-        <!-- Tab Navigation -->
+        
+        <!-- Tab navigation -->
         <div class="tab-navigation">
-            <button class="tab-button active" data-tab="preferences">Preference Collection</button>
-            <button class="tab-button" data-tab="similar">Similar Segments</button>
+            <button class="tab-button active" data-tab="preference-tab">Preference Collection</button>
+            <button class="tab-button" data-tab="active-tab">Active Learning</button>
+            <button class="tab-button" data-tab="similar-tab">Similar Segments</button>
         </div>
 
-        <!-- Preferences Tab -->
-        <div class="tab-content active" id="preferences-tab">
+        <!-- Preference Collection Tab -->
+        <div id="preference-tab" class="tab-content active">
             <div class="dataset-info">
-                <p>Progress: <span id="labeled-count">0</span> labeled / <span id="total-count">0</span> total pairs (<span id="progress-percent">0</span>%)</p>
-                <p>Unlabeled pairs remaining: <span id="unlabeled-count">0</span></p>
-                <div class="acquisition-control">
-                    <label for="acquisition-select">Acquisition Method:</label>
-                    <select id="acquisition-select">
-                        <option value="random">Random</option>
-                        <option value="entropy">Entropy-based</option>
-                        <option value="disagreement">Disagreement-based</option>
-                    </select>
-                    <div class="acquisition-info hidden">
-                        <p>Current Score: <span id="acquisition-score">-</span></p>
-                    </div>
-                </div>
+                <p>Total Pairs: <span id="total-count">0</span></p>
+                <p>Labeled Pairs: <span id="labeled-count">0</span></p>
+                <p>Progress: <span id="progress-percent">0</span>%</p>
             </div>
+
             <p>Please watch both trajectories and select which one you prefer.</p>
             
             <div class="pair-info">
@@ -63,11 +67,11 @@
                 </div>
                 <div class="pair-navigation">
                     <div class="pair-index-control">
-                        <label for="pair-index-input">Go to Pair:</label>
-                        <input type="number" id="pair-index-input" min="0" step="1">
+                        <label for="pair-index">Go to Pair:</label>
+                        <input type="number" id="pair-index" min="0" step="1">
                         <button id="go-to-pair" class="nav-button">Go</button>
                     </div>
-                    <button id="random-pair" class="nav-button">Random Unlabeled Pair</button>
+                    <button id="random-pair" class="nav-button">Random Pair</button>
                 </div>
             </div>
             
@@ -85,60 +89,171 @@
                         <p class="agreement-status" id="agreement-status"></p>
                     </div>
                 </div>
-            </div>
-            
-            <div class="trajectories">
-                <div class="trajectory-container">
-                    <h2>Trajectory A</h2>
-                    <div class="video-container" id="video-A">
-                        <video id="trajectory-A" controls loop>
-                            <source src="" type="video/mp4">
-                            Your browser does not support video playback.
-                        </video>
+        </div>
+        
+        <div class="trajectories">
+            <div class="trajectory-container">
+                <h2>Trajectory A</h2>
+                    <div class="video-container">
+                        <video id="trajectory-A" controls loop muted playsinline>
+                        <source src="" type="video/mp4">
+                        Your browser does not support video playback.
+                    </video>
+                        <div class="loading-indicator hidden">Loading...</div>
                     </div>
-                </div>
-                
-                <div class="trajectory-container">
-                    <h2>Trajectory B</h2>
-                    <div class="video-container" id="video-B">
-                        <video id="trajectory-B" controls loop>
-                            <source src="" type="video/mp4">
-                            Your browser does not support video playback.
-                        </video>
+            </div>
+            
+            <div class="trajectory-container">
+                <h2>Trajectory B</h2>
+                    <div class="video-container">
+                        <video id="trajectory-B" controls loop muted playsinline>
+                        <source src="" type="video/mp4">
+                        Your browser does not support video playback.
+                    </video>
+                        <div class="loading-indicator hidden">Loading...</div>
                     </div>
-                </div>
             </div>
-            
-            <div class="preference-buttons">
-                <button id="prefer-A" class="preference-button">I Prefer Trajectory A</button>
-                <button id="prefer-equal" class="preference-button">No Preference</button>
-                <button id="prefer-B" class="preference-button">I Prefer Trajectory B</button>
-            </div>
-            
-            <div class="navigation-buttons">
+        </div>
+        
+        <div class="preference-buttons">
+            <button id="prefer-A" class="preference-button">I Prefer Trajectory A</button>
+            <button id="prefer-equal" class="preference-button">No Preference</button>
+            <button id="prefer-B" class="preference-button">I Prefer Trajectory B</button>
+        </div>
+        
+        <div class="navigation-buttons">
                 <button id="prev-pair" class="nav-button">Previous Pair</button>
                 <button id="next-pair" class="nav-button">Next Pair</button>
             </div>
         </div>
 
+        <!-- Active Learning Tab -->
+        <div id="active-tab" class="tab-content">
+            <div class="dataset-info">
+                <p>Total Pairs: <span id="active-total-count">0</span></p>
+                <p>Labeled Pairs: <span id="active-labeled-count">0</span></p>
+                <p>Unlabeled Pairs: <span id="active-unlabeled-count">0</span></p>
+                <p>Progress: <span id="active-progress-percent">0</span>%</p>
+            </div>
+
+            <div class="settings-section">
+                <h3>Active Learning Settings</h3>
+                <div class="acquisition-control">
+                    <label for="acquisition-select">Acquisition Method:</label>
+                    <select id="acquisition-select">
+                        <option value="disagreement">Model Disagreement</option>
+                        <option value="entropy">Entropy</option>
+                        <option value="random">Random</option>
+                    </select>
+                </div>
+                <div class="iteration-control">
+                    <label for="max-iterations">Number of Iterations:</label>
+                    <select id="max-iterations">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <button id="startActiveSession" class="primary-button">Start Active Learning Session</button>
+            </div>
+
+            <div class="acquisition-info hidden" id="acquisition-info">
+                <p>Acquisition Score: <span id="acquisition-score">-</span></p>
+            </div>
+
+            <div id="activeProgress" class="progress-section hidden">
+                <h3>Session Progress</h3>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <p>Iteration <span id="currentIteration">0</span> of <span id="maxIterationDisplay">0</span></p>
+            </div>
+
+            <!-- Active learning pair info -->
+            <div class="pair-info hidden" id="active-pair-info">
+                <div class="current-pair">
+                    <h3>Current Active Pair</h3>
+                    <p>Pair Index: <span id="active-current-pair-index">-</span></p>
+                    <p>Comparing Segments: <span id="active-segment-a">-</span> vs <span id="active-segment-b">-</span></p>
+                </div>
+            </div>
+
+            <!-- Active learning video containers -->
+            <div class="trajectories hidden" id="active-trajectories">
+                <div class="trajectory-container">
+                    <h2>Trajectory A</h2>
+                    <div class="video-container">
+                        <video id="active-trajectory-A" controls loop muted playsinline>
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="loading-indicator hidden">Loading...</div>
+                    </div>
+                </div>
+                <div class="trajectory-container">
+                    <h2>Trajectory B</h2>
+                    <div class="video-container">
+                        <video id="active-trajectory-B" controls loop muted playsinline>
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="loading-indicator hidden">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Learning Preference Buttons -->
+            <div class="preference-buttons hidden" id="active-preference-buttons">
+                <button id="active-prefer-A" class="preference-button">Prefer A</button>
+                <button id="active-prefer-equal" class="preference-button">Equal</button>
+                <button id="active-prefer-B" class="preference-button">Prefer B</button>
+            </div>
+
+            <!-- Active Learning Metadata -->
+            <div class="metadata-section hidden" id="active-metadata">
+                <h3>Session Metadata</h3>
+                <div class="metadata-content">
+                    <div class="metadata-item">
+                        <h4>Acquisition Score Distribution</h4>
+                        <img id="acquisition-plot" src="" alt="Acquisition score distribution" style="max-width: 100%; height: auto;">
+                        <div class="stats-summary">
+                            <p>Mean: <span id="scores-mean">-</span></p>
+                            <p>Std: <span id="scores-std">-</span></p>
+                            <p>Min: <span id="scores-min">-</span></p>
+                            <p>Max: <span id="scores-max">-</span></p>
+                        </div>
+                    </div>
+                    <div class="metadata-item">
+                        <h4>Training Progress</h4>
+                        <img id="training-plot" src="" alt="Training progress" style="max-width: 100%; height: auto;">
+                        <div class="training-summary">
+                            <p>Train Loss: <span id="train-loss">-</span></p>
+                            <p>Val Loss: <span id="val-loss">-</span></p>
+                            <p>Iteration: <span id="current-iteration-meta">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Similar Segments Tab -->
-        <div class="tab-content" id="similar-tab">
+        <div id="similar-tab" class="tab-content">
             <div class="similar-segments-controls">
                 <div class="segment-input">
                     <label for="segment-index-input">Segment Index:</label>
-                    <input type="number" id="segment-index-input" min="0" step="1">
-                    <button id="find-similar" class="search-button">Find Similar Segments</button>
+                    <input type="number" id="segment-index-input" min="0" step="1" placeholder="Enter segment index">
                 </div>
                 <div class="k-input">
                     <label for="k-value">Number of similar segments (k):</label>
                     <input type="number" id="k-value" min="1" max="10" value="5" step="1">
                 </div>
+                <button id="find-similar" class="search-button">Find Similar Segments</button>
+                <button id="random-segment" class="nav-button">Random Segment</button>
             </div>
 
             <div class="target-segment">
                 <h2>Target Segment</h2>
                 <div class="video-container">
-                    <video id="target-segment-video" controls loop>
+                    <video id="target-segment-video" controls loop muted playsinline>
                         <source src="" type="video/mp4">
                         Your browser does not support video playback.
                     </video>
@@ -151,14 +266,14 @@
 
             <div class="similar-segments">
                 <h2>Most Similar Segments</h2>
-                <div id="similar-segments-container">
+                <div id="similar-segments-container" class="segments-grid">
                     <!-- Similar segments will be added here dynamically -->
                 </div>
             </div>
 
             <div class="dissimilar-segments">
                 <h2>Most Dissimilar Segments</h2>
-                <div id="dissimilar-segments-container">
+                <div id="dissimilar-segments-container" class="segments-grid">
                     <!-- Dissimilar segments will be added here dynamically -->
                 </div>
             </div>

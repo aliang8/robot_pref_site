@@ -33,9 +33,9 @@ def load_trajectory(traj_dir):
     actions = [d["actions"] for d in policy_data]
     
     return {
-        'obs': obs_dict["full_state"],
+        'obs': obs_dict["full_state"][:-1],
         'action': actions,
-        'images': images,
+        'images': images[:-1],
     }
 
 def process_task_data(task_name):

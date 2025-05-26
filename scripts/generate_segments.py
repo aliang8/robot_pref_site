@@ -21,6 +21,12 @@ if __name__ == "__main__":
     segments, segment_indices = segment_episodes_dynamic(data, segment_length)
 
     segment_start_end_indices = np.array(segment_indices)
+    # make sure all the segments are of the same length
+    for segment in segments:
+        segment_len = len(segment['obs'])
+        for k, v in segment.items():
+            assert len(v) == segment_len, f"Segment length mismatch for key {k}: {len(v)} != {segment_len}"
+
     np.save(os.path.join(BASE_DIR, task_name, 'segment_start_end_indices.npy'), segment_start_end_indices)
 
     segment_indices = np.arange(len(segments))
