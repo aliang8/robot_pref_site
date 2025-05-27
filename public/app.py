@@ -224,7 +224,7 @@ def get_trajectory_pair():
             app.logger.error(f"Data file not found: {data_path}")
             return jsonify({'error': f'Data file not found: {data_path}'}), 404
         
-        trajectory_data = torch.load(data_path)
+        trajectory_data = torch.load(data_path, weights_only=False)
         app.logger.info(f"Loaded trajectory data keys: {list(trajectory_data.keys())}")
         app.logger.info(f"Image data shape: {trajectory_data['image'].shape}")
         
