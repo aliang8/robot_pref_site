@@ -1394,25 +1394,25 @@ async function updatePlots() {
             console.log('No acquisition scores available yet');
         }
         
-        // // Update training progress plot
-        // try {
-        //     const trainingPlotUrl = `${BACKEND_URL}/api/training-plot?dataset=${currentDataset}&session_id=${sessionId}&t=${Date.now()}`;
-        //     const trainingImg = document.getElementById('training-plot');
-        //     if (trainingImg) {
-        //         // Add error handling for image loading
-        //         trainingImg.onerror = function() {
-        //             console.error('Failed to load training plot');
-        //             this.style.display = 'none';
-        //         };
-        //         trainingImg.onload = function() {
-        //             console.log('Training plot loaded successfully');
-        //             this.style.display = 'block';
-        //         };
-        //         trainingImg.src = trainingPlotUrl;
-        //     }
-        // } catch (error) {
-        //     console.log('No training data available yet');
-        // }
+        // Update training progress plot
+        try {
+            const trainingPlotUrl = `${BACKEND_URL}/api/training-plot?dataset=${currentDataset}&session_id=${sessionId}&t=${Date.now()}`;
+            const trainingImg = document.getElementById('training-plot');
+            if (trainingImg) {
+                // Add error handling for image loading
+                trainingImg.onerror = function() {
+                    console.error('Failed to load training plot');
+                    this.style.display = 'none';
+                };
+                trainingImg.onload = function() {
+                    console.log('Training plot loaded successfully');
+                    this.style.display = 'block';
+                };
+                trainingImg.src = trainingPlotUrl;
+            }
+        } catch (error) {
+            console.log('No training data available yet');
+        }
         
     } catch (error) {
         console.error('Error updating plots:', error);

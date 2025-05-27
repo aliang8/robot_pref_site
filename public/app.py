@@ -781,7 +781,7 @@ def get_similar_segments():
         dataset_dir = os.path.join(DATA_DIR, dataset)
         if not os.path.exists(dataset_dir):
             return jsonify({'error': f'Dataset {dataset} not found'}), 404
-            
+                
         # Determine matrix file based on dtw_type
         if dtw_type == 'sdtw':
             matrix_file = os.path.join(dataset_dir, 'sdtw_matrix_32.pkl')
@@ -828,7 +828,7 @@ def get_similar_segments():
             data_path = os.path.join(dataset_dir, f"{dataset}.pt")
             if os.path.exists(data_path):
                 try:
-                    trajectory_data = torch.load(data_path)
+                    trajectory_data = torch.load(data_path, weights_only=False)
                     if "reward" in trajectory_data:
                         segment_indices_path = os.path.join(dataset_dir, 'segment_start_end_indices.npy')
                         if os.path.exists(segment_indices_path):
@@ -853,7 +853,7 @@ def get_similar_segments():
         trajectory_data = None
         segment_indices = None
         if os.path.exists(data_path) and os.path.exists(segment_indices_path):
-            trajectory_data = torch.load(data_path)
+            trajectory_data = torch.load(data_path, weights_only=False)
             # Convert tensors to numpy
             trajectory_data = {
                 k: v.cpu().numpy() if isinstance(v, torch.Tensor) else v 
@@ -990,7 +990,7 @@ def handle_active_preference():
         
         app.logger.info("Loading trajectory data and segments...")
         # Load data and segments
-        data = torch.load(data_path)
+        data = torch.load(data_path, weights_only=False)
         # Move data to CPU first to avoid CUDA issues in dataloader workers
         data = {k: v.cpu() if isinstance(v, torch.Tensor) else v for k, v in data.items()}
         
