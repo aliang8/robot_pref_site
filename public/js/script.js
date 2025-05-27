@@ -1359,14 +1359,7 @@ async function updateActiveMetadata(trainingData) {
             metadataSection.classList.remove('hidden');
         }
         
-        // Update training metrics display
-        if (trainingData.train_loss && trainingData.val_loss) {
-            document.getElementById('train-loss').textContent = trainingData.train_loss.toFixed(4);
-            document.getElementById('val-loss').textContent = trainingData.val_loss.toFixed(4);
-            document.getElementById('current-iteration-meta').textContent = currentIteration;
-        }
-        
-        // Update plots
+        // Update plots (the training metrics are now shown in the plot itself)
         await updatePlots();
         
     } catch (error) {
@@ -1384,35 +1377,42 @@ async function updatePlots() {
             const acquisitionPlotUrl = `${BACKEND_URL}/api/acquisition-plot?dataset=${currentDataset}&acquisition=${currentAcquisition}&session_id=${sessionId}&t=${Date.now()}`;
             const acquisitionImg = document.getElementById('acquisition-plot');
             if (acquisitionImg) {
+                // Add error handling for image loading
+                acquisitionImg.onerror = function() {
+                    console.error('Failed to load acquisition plot');
+                    this.style.display = 'none';
+                };
+                acquisitionImg.onload = function() {
+                    console.log('Acquisition plot loaded successfully');
+                    this.style.display = 'block';
+                };
                 acquisitionImg.src = acquisitionPlotUrl;
-                acquisitionImg.style.display = 'block';
             }
             
-            // Update statistics from the backend
-            const response = await safeFetch(`${BACKEND_URL}/api/get-acquisition-stats?dataset=${currentDataset}&acquisition=${currentAcquisition}&session_id=${sessionId}`);
-            const stats = await response.json();
-            
-            if (!stats.error) {
-                document.getElementById('scores-mean').textContent = stats.statistics.mean.toFixed(4);
-                document.getElementById('scores-std').textContent = stats.statistics.std.toFixed(4);
-                document.getElementById('scores-min').textContent = stats.statistics.min.toFixed(4);
-                document.getElementById('scores-max').textContent = stats.statistics.max.toFixed(4);
-            }
+
         } catch (error) {
             console.log('No acquisition scores available yet');
         }
         
-        // Update training progress plot
-        try {
-            const trainingPlotUrl = `${BACKEND_URL}/api/training-plot?dataset=${currentDataset}&session_id=${sessionId}&t=${Date.now()}`;
-            const trainingImg = document.getElementById('training-plot');
-            if (trainingImg) {
-                trainingImg.src = trainingPlotUrl;
-                trainingImg.style.display = 'block';
-            }
-        } catch (error) {
-            console.log('No training data available yet');
-        }
+        // // Update training progress plot
+        // try {
+        //     const trainingPlotUrl = `${BACKEND_URL}/api/training-plot?dataset=${currentDataset}&session_id=${sessionId}&t=${Date.now()}`;
+        //     const trainingImg = document.getElementById('training-plot');
+        //     if (trainingImg) {
+        //         // Add error handling for image loading
+        //         trainingImg.onerror = function() {
+        //             console.error('Failed to load training plot');
+        //             this.style.display = 'none';
+        //         };
+        //         trainingImg.onload = function() {
+        //             console.log('Training plot loaded successfully');
+        //             this.style.display = 'block';
+        //         };
+        //         trainingImg.src = trainingPlotUrl;
+        //     }
+        // } catch (error) {
+        //     console.log('No training data available yet');
+        // }
         
     } catch (error) {
         console.error('Error updating plots:', error);

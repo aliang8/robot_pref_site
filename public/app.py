@@ -21,13 +21,30 @@ import pickle
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import io
 import base64
+
+# Configure matplotlib to avoid font issues
+plt.rcParams.update({
+    'font.family': 'DejaVu Sans',  # Use a reliable font
+    'font.size': 10,
+    'axes.titlesize': 12,
+    'axes.labelsize': 10,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9,
+    'legend.fontsize': 9,
+    'figure.titlesize': 14,
+    'svg.fonttype': 'none',  # Avoid font embedding issues
+    'pdf.fonttype': 42,      # Use TrueType fonts
+    'ps.fonttype': 42        # Use TrueType fonts
+})
 sys.path.append('/scr/aliang80/robot_pref')
 from models.reward_models import EnsembleRewardModel
 from select_next_pair import compute_disagreement, compute_entropy, select_next_pair
 from train_reward_model import train_model
 from utils.dataset import PreferenceDataset, create_data_loaders
+from utils.viz import plot_active_learning_metrics
 from omegaconf import OmegaConf
 
 app = Flask(__name__)
@@ -118,7 +135,12 @@ DATA_DIR = "/scr/shared/datasets/robot_pref"
 VIDEO_DIR = os.path.join(ROOT_DIR, 'temp_videos')  # Point to /scr/aliang80/robot_pref_site/temp_videos
 os.makedirs(VIDEO_DIR, exist_ok=True)
 
+# Folder to store generated plots - use absolute path  
+PLOTS_DIR = os.path.join(ROOT_DIR, 'temp_plots')
+os.makedirs(PLOTS_DIR, exist_ok=True)
+
 app.logger.info(f"Video directory: {VIDEO_DIR}")
+app.logger.info(f"Plots directory: {PLOTS_DIR}")
 app.logger.info(f"Base directory: {BASE_DIR}")
 app.logger.info(f"Root directory: {ROOT_DIR}")
 app.logger.info(f"Data directory: {DATA_DIR}")
@@ -128,6 +150,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Video cleanup settings
 VIDEO_MAX_AGE = timedelta(minutes=30)  # Delete videos older than 30 minutes
+PLOT_MAX_AGE = timedelta(minutes=30)   # Delete plots older than 30 minutes
 
 def cleanup_old_videos():
     """Delete videos older than VIDEO_MAX_AGE"""
@@ -142,6 +165,19 @@ def cleanup_old_videos():
     except Exception as e:
         app.logger.error(f"Error cleaning up videos: {str(e)}")
 
+def cleanup_old_plots():
+    """Delete plots older than PLOT_MAX_AGE"""
+    try:
+        now = datetime.now()
+        for filename in os.listdir(PLOTS_DIR):
+            filepath = os.path.join(PLOTS_DIR, filename)
+            file_modified = datetime.fromtimestamp(os.path.getmtime(filepath))
+            if now - file_modified > PLOT_MAX_AGE:
+                os.remove(filepath)
+                app.logger.info(f"Cleaned up old plot: {filename}")
+    except Exception as e:
+        app.logger.error(f"Error cleaning up plots: {str(e)}")
+
 @app.before_request
 def log_request_info():
     app.logger.info('Headers: %s', dict(request.headers))
@@ -150,7 +186,15 @@ def log_request_info():
 
 @app.after_request
 def after_request(response):
-    app.logger.info('Response: %s', response.get_data())
+    # Only log response data for non-file responses to avoid errors
+    if response.mimetype not in ['image/png', 'video/mp4', 'application/octet-stream']:
+        try:
+            app.logger.info('Response: %s', response.get_data())
+        except Exception as e:
+            app.logger.info('Response: [Binary data - cannot display]')
+    else:
+        app.logger.info(f'Response: [File response - {response.mimetype}]')
+    
     origin = request.headers.get('Origin')
     allowed_origins = [
         "http://0.0.0.0:5500",
@@ -493,6 +537,23 @@ def save_preferences():
     except Exception as e:
         app.logger.error(f"Error saving preferences: {str(e)}", exc_info=True)
         return jsonify({'error': f'Failed to save preferences: {str(e)}'}), 500
+
+@app.route('/plots/<path:filename>')
+def serve_plot(filename):
+    """Serve plot images with proper headers and CORS"""
+    # Ensure the file exists
+    plot_path = os.path.join(PLOTS_DIR, filename)
+    app.logger.info(f"Attempting to serve plot: {plot_path}")
+    
+    if not os.path.exists(plot_path):
+        app.logger.error(f"Plot file not found: {plot_path}")
+        return jsonify({'error': 'Plot file not found'}), 404
+
+    try:
+        return send_file(plot_path, mimetype='image/png')
+    except Exception as e:
+        app.logger.error(f"Error serving plot: {e}", exc_info=True)
+        return jsonify({'error': 'Error serving plot file'}), 500
 
 @app.route('/videos/<path:filename>')
 def serve_video(filename):
@@ -1219,14 +1280,14 @@ def get_acquisition_stats():
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
         
-        # Create statistics
+        # Create statistics - convert all NumPy types to native Python types
         stats = {
             'total_pairs': len(scores),
             'labeled_pairs': len(labeled_pairs),
             'scores': {
                 'all': scores.tolist(),
-                'labeled': [scores[i] for i in labeled_pairs],
-                'unlabeled': [scores[i] for i in range(len(scores)) if i not in labeled_pairs]
+                'labeled': [float(scores[i]) for i in labeled_pairs],
+                'unlabeled': [float(scores[i]) for i in range(len(scores)) if i not in labeled_pairs]
             },
             'statistics': {
                 'min': float(np.min(scores)),
@@ -1279,40 +1340,69 @@ def get_acquisition_plot():
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
         
-        # Create plot
-        plt.figure(figsize=(10, 6))
+        # Clear any existing plots
+        plt.clf()
+        plt.close('all')
+        
+        # Create new plot
+        fig, ax = plt.subplots(figsize=(10, 6))
         
         # Get unlabeled and labeled scores
         unlabeled_scores = [scores[i] for i in range(len(scores)) if i not in labeled_pairs]
         labeled_scores = [scores[i] for i in labeled_pairs] if labeled_pairs else []
         
-        # Plot histogram of unlabeled scores
-        plt.hist(unlabeled_scores, bins=30, alpha=0.7, color='skyblue', label=f'Unlabeled ({len(unlabeled_scores)})', edgecolor='black')
+        # Determine adaptive x-axis range
+        all_scores = list(scores)
+        score_min = np.min(all_scores)
+        score_max = np.max(all_scores)
+        score_range = score_max - score_min
+        
+        # Add some padding to the range (5% on each side)
+        padding = score_range * 0.05 if score_range > 0 else 0.1
+        x_min = score_min - padding
+        x_max = score_max + padding
+        
+        # Plot histogram of unlabeled scores with adaptive bins
+        ax.hist(unlabeled_scores, bins=30, alpha=0.7, color='skyblue', label=f'Unlabeled ({len(unlabeled_scores)})', edgecolor='black', range=(x_min, x_max))
         
         # Overlay labeled scores if any
         if labeled_scores:
-            plt.hist(labeled_scores, bins=30, alpha=0.8, color='orange', label=f'Labeled ({len(labeled_scores)})', edgecolor='black')
+            ax.hist(labeled_scores, bins=30, alpha=0.8, color='orange', label=f'Labeled ({len(labeled_scores)})', edgecolor='black', range=(x_min, x_max))
         
-        plt.xlabel('Acquisition Score')
-        plt.ylabel('Frequency')
-        plt.title(f'{acquisition.capitalize()} Score Distribution')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+        # Set x-axis limits
+        ax.set_xlim(x_min, x_max)
+        
+        ax.set_xlabel('Acquisition Score')
+        ax.set_ylabel('Frequency')
+        ax.set_title(f'{acquisition.capitalize()} Score Distribution')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
         
         # Add statistics text
         stats_text = f'Mean: {np.mean(scores):.4f}\nStd: {np.std(scores):.4f}\nMin: {np.min(scores):.4f}\nMax: {np.max(scores):.4f}'
-        plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes, verticalalignment='top',
+        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, verticalalignment='top',
                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
         
         plt.tight_layout()
         
-        # Save to BytesIO
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
-        img_buffer.seek(0)
-        plt.close()
+        # Clean up old plots first
+        cleanup_old_plots()
         
-        return send_file(img_buffer, mimetype='image/png')
+        # Generate unique filename
+        timestamp = int(datetime.now().timestamp())
+        plot_filename = f"acquisition_{acquisition}_{dataset}_{session_id}_{timestamp}.png"
+        plot_path = os.path.join(PLOTS_DIR, plot_filename)
+        
+        app.logger.info(f"Saving acquisition plot to: {plot_path}")
+        
+        # Save plot to file
+        fig.savefig(plot_path, format='png', dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        
+        app.logger.info(f"Saved acquisition plot to: {plot_path}")
+        
+        # Return the plot file
+        return send_file(plot_path, mimetype='image/png')
         
     except Exception as e:
         app.logger.error(f"Error generating acquisition plot: {str(e)}", exc_info=True)
@@ -1320,11 +1410,13 @@ def get_acquisition_plot():
 
 @app.route('/api/training-plot', methods=['GET'])
 def get_training_plot():
-    """Generate training progress plot."""
+    """Generate active learning metrics plot."""
     try:
         dataset = request.args.get('dataset', 'assembly-v2')
         session_id = request.args.get('session_id')
         dataset_dir = os.path.join(DATA_DIR, dataset)
+        
+        app.logger.info(f"Active learning metrics plot request - dataset: {dataset}, session_id: {session_id}")
         
         if not session_id:
             return jsonify({'error': 'session_id is required'}), 400
@@ -1340,41 +1432,102 @@ def get_training_plot():
         
         # Extract training metrics if available
         preferences = session_data.get('preferences', [])
-        iterations = []
+        num_labeled = []
         train_losses = []
         val_losses = []
         
         for i, pref in enumerate(preferences):
             if 'train_loss' in pref and 'val_loss' in pref:
-                iterations.append(i + 1)
+                num_labeled.append(i + 1)  # Number of labeled pairs
                 train_losses.append(pref['train_loss'])
                 val_losses.append(pref['val_loss'])
         
-        if not iterations:
+        app.logger.info(f"Found {len(num_labeled)} training iterations")
+        
+        if not num_labeled:
             return jsonify({'error': 'No training data available'}), 404
         
-        # Create plot
-        plt.figure(figsize=(10, 6))
-        plt.plot(iterations, train_losses, 'o-', color='red', label='Train Loss', linewidth=2, markersize=6)
-        plt.plot(iterations, val_losses, 's-', color='blue', label='Validation Loss', linewidth=2, markersize=6)
+        # Clear any existing plots
+        plt.clf()
+        plt.close('all')
         
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Training Progress')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+        # Create active learning metrics plot (adapted for web interface)
+        fig, axs = plt.subplots(1, 2, figsize=(16, 6))
+        
+        dot_size = 8
+        line_color = "blue"
+        
+        # Plot training loss (left)
+        ax1 = axs[0]
+        ax1.plot(
+            num_labeled,
+            train_losses,
+            marker="o",
+            markersize=dot_size,
+            color="red",
+            label="Training Loss",
+            linewidth=2
+        )
+        ax1.set_xlabel("Number of Labeled Pairs", fontsize=14)
+        ax1.set_ylabel("Training Loss (BCE)", fontsize=14)
+        ax1.set_title("Training Loss vs Labeled Pairs", fontsize=16)
+        ax1.grid(True, alpha=0.3)
+        ax1.spines["top"].set_visible(False)
+        ax1.spines["right"].set_visible(False)
+        
+        # Plot validation loss (right)
+        ax2 = axs[1]
+        ax2.plot(
+            num_labeled,
+            val_losses,
+            marker="s",
+            markersize=dot_size,
+            color=line_color,
+            label="Validation Loss",
+            linewidth=2
+        )
+        ax2.set_xlabel("Number of Labeled Pairs", fontsize=14)
+        ax2.set_ylabel("Validation Loss (BCE)", fontsize=14)
+        ax2.set_title("Validation Loss vs Labeled Pairs", fontsize=16)
+        ax2.grid(True, alpha=0.3)
+        ax2.spines["top"].set_visible(False)
+        ax2.spines["right"].set_visible(False)
+        
+        # Ensure x-axis has only integer ticks
+        from matplotlib.ticker import MaxNLocator
+        for ax in axs:
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            
+        # Ensure proper scaling if we have very few points
+        if len(num_labeled) == 1:
+            for ax in axs:
+                ax.set_xlim(0.5, 1.5)
+        elif len(num_labeled) > 1:
+            for ax in axs:
+                ax.set_xlim(min(num_labeled) - 0.1, max(num_labeled) + 0.1)
+        
         plt.tight_layout()
         
-        # Save to BytesIO
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
-        img_buffer.seek(0)
-        plt.close()
+        # Generate unique filename
+        timestamp = int(datetime.now().timestamp())
+        plot_filename = f"active_learning_metrics_{dataset}_{session_id}_{timestamp}.png"
+        plot_path = os.path.join(PLOTS_DIR, plot_filename)
         
-        return send_file(img_buffer, mimetype='image/png')
+        app.logger.info(f"Saving active learning metrics plot to: {plot_path}")
+        
+        # Save plot to file
+        fig.savefig(plot_path, format='png', dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        
+        # Clean up old plots first
+        cleanup_old_plots()
+        app.logger.info(f"Saved active learning metrics plot to: {plot_path}")
+        
+        # Return the plot file
+        return send_file(plot_path, mimetype='image/png')
         
     except Exception as e:
-        app.logger.error(f"Error generating training plot: {str(e)}", exc_info=True)
+        app.logger.error(f"Error generating active learning metrics plot: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/start-active-session', methods=['POST'])
